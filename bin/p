@@ -15,7 +15,7 @@ SYMLINK_DIR="bin include lib share"
 
 # Python source
 
-MIRROR=(${PYTHON_MIRROR-https://www.python.org/ftp/python/})
+MIRROR=("${PYTHON_MIRROR-https://www.python.org/ftp/python/}")
 
 # Ensure wget or curl command exists
 
@@ -34,28 +34,27 @@ command -v curl > /dev/null && GET="curl -# -L"
 # Log <type> <msg>
 
 log() {
-  printf "  \033[36m%10s\033[0m : \033[90m%s\033[0m\n" "$1" "$2"
+  printf '  \033[36m%10s\033[0m : \033[90m%s\033[0m\n' "$1" "$2"
 }
 
 # Exit with the given <msg ...>
 
 abort() {
-  printf "\n  \033[31mError: %s\033[0m\n\n" "$@" && exit 1
+  printf '\n  \033[31mError: %s\033[0m\n\n' "$@" && exit 1
 }
 
 # Print a (differentiable from log) success message
 
 success() {
-  printf "\n  \033[32mSuccess: %s\033[0m\n\n" "$@"
+  printf '\n  \033[32mSuccess: %s\033[0m\n\n' "$@"
 }
 
 # Gets current human-readable Python version.
 
 get_current_version() {
   local version
-  version=$(python -V 2>&1)
 
-  if [ $? -ne 0 ]; then
+  if ! version=$(python -V 2>&1); then
     abort "Python is not found. Try installing or activating one."
   fi
 
@@ -65,12 +64,11 @@ get_current_version() {
 # Check for installed version, and populate $active
 
 check_current_version() {
-  command -v python &> /dev/null
-  if [ $? -eq 0 ]; then
+  if command -v python &> /dev/null; then
     get_current_version
     if diff &> /dev/null \
       "$BASE_VERSIONS_DIR"/python/"$current"/bin/python \
-      "$(which python)" ; then
+      "$(command -v python)"; then
       active="python/$current"
     fi
   fi
@@ -81,7 +79,7 @@ check_current_version() {
 versions_paths() {
   find "$BASE_VERSIONS_DIR" -maxdepth 2 -type d \
     | sed 's|'"$BASE_VERSIONS_DIR"'/||g' \
-    | egrep "[0-9]+\.[0-9]+\.[0-9]+([a|b]?)([0-9]?)+" \
+    | grep -E '[0-9]+\.[0-9]+\.[0-9]+([a|b]?)([0-9]?)+' \
     | sort -k 1,1n -k 2,2n -k 3,3n -t . -k 4,4n -d -k 5,5n -r
 }
 
@@ -93,7 +91,7 @@ activate() {
   check_current_version
   if [ "$version" != "$active" ]; then
     for symdir in $SYMLINK_DIR; do
-      ln -sfn "$BASE_VERSIONS_DIR"/"$version"/$symdir "$BASE_VERSIONS_DIR"/$symdir
+      ln -sfn "$BASE_VERSIONS_DIR/$version/$symdir" "$BASE_VERSIONS_DIR/$symdir"
     done
   fi
 }
@@ -184,9 +182,9 @@ display_versions_with_selected() {
   for version in $(versions_paths); do
     version_minus_python=${version#*python\/}
     if [ "$version" = "$selected" ]; then
-      printf "  \033[36mο\033[0m %s\033[0m\n" "$version_minus_python"
+      printf '  \033[36mο\033[0m %s\033[0m\n' "$version_minus_python"
     else
-      printf "    \033[90m%s\033[0m\n" "$version_minus_python"
+      printf '    \033[90m%s\033[0m\n' "$version_minus_python"
     fi
   done
   echo
@@ -233,9 +231,9 @@ display_remote_versions() {
   check_current_version
   local versions=""
   versions=$($GET 2> /dev/null "${MIRROR[@]}" \
-    | egrep -o '[0-9]+\.[0-9]+\.[0-9]+' \
-    | egrep -v '^0\.[0-7]\.' \
-    | egrep -v '^0\.8\.[0-5]$' \
+    | grep -E -o '[0-9]+\.[0-9]+\.[0-9]+' \
+    | grep -E -v '^0\.[0-7]\.' \
+    | grep -E -v '^0\.8\.[0-5]$' \
     | sort -u -k 1,1n -k 2,2n -k 3,3n -t . \
     | head -n -1 \
     | awk '{ print "  " $1 }')
@@ -244,12 +242,12 @@ display_remote_versions() {
 
   for v in $versions; do
     if [ "$active" = "python/$v" ]; then
-      printf "  \033[36mο\033[0m %s \033[0m\n" "$v"
+      printf '  \033[36mο\033[0m %s \033[0m\n' "$v"
     else
       if [ -d "$BASE_VERSIONS_DIR"/python/"$v" ]; then
-        printf "    %s \033[0m\n" "$v"
+        printf '    %s \033[0m\n' "$v"
       else
-        printf "    \033[90m%s\033[0m\n" "$v"
+        printf '    \033[90m%s\033[0m\n' "$v"
       fi
     fi
   done
@@ -263,12 +261,12 @@ display_remote_versions() {
 
 display_latest_version() {
   latest_directory=$($GET 2> /dev/null "${MIRROR[@]}" \
-    | egrep -o '[0-9]+\.[0-9]+\.[0-9]+' \
+    | grep -E -o '[0-9]+\.[0-9]+\.[0-9]+' \
     | sort -u -k 1,1n -k 2,2n -k 3,3n -t . \
     | tail -n1)
 
-  $GET 2> /dev/null "${MIRROR[@]}""$latest_directory" \
-    | egrep -o '[0-9]+\.[0-9]+\.[0-9]+[a|b][0-9]+' \
+  $GET 2> /dev/null "${MIRROR[*]}$latest_directory" \
+    | grep -E -o '[0-9]+\.[0-9]+\.[0-9]+[a|b][0-9]+' \
     | sort -k 1,1n -k 2,2n -k 3,3n -t . -k 4,4n -d -k 5,5n -d \
     | tail -n1
 }
@@ -279,7 +277,7 @@ display_latest_version() {
 
 display_latest_stable_version() {
   $GET 2> /dev/null "${MIRROR[@]}" \
-    | egrep -o '[0-9]+\.[0-9]*[02468]\.[0-9]+' \
+    | grep -E -o '[0-9]+\.[0-9]*[02468]\.[0-9]+' \
     | sort -u -k 1,1n -k 2,2n -k 3,3n -t . \
     | tail -n1
 }
@@ -287,14 +285,14 @@ display_latest_stable_version() {
 # Move up a line and erase.
 
 erase_line() {
-  printf "\033[1A\033[2K"
+  printf '\033[1A\033[2K'
 }
 
 # Determine tarball url for <version>
 
 tarball_url() {
   version_directory="${version%a*}"
-  echo "${MIRROR[@]}${version_directory%b*}/Python-${version}.tgz"
+  echo "${MIRROR[*]}${version_directory%b*}/Python-${version}.tgz"
 }
 
 # Check if the HEAD response of <url> is 200.
@@ -311,14 +309,14 @@ install() {
   local version=${1#v}
 
   local dots
-  dots=$(echo "$version" | sed 's/[^.]*//g')
+  dots=${version//[^.]/}
   if [ ${#dots} -eq 1 ]; then
     version=$($GET 2> /dev/null "${MIRROR[@]}" \
-      | egrep -o '[0-9]+\.[0-9]+\.[0-9]+' \
-      | egrep -v '^0\.[0-7]\.' \
-      | egrep -v '^0\.8\.[0-5]$' \
+      | grep -E -o '[0-9]+\.[0-9]+\.[0-9]+' \
+      | grep -E -v '^0\.[0-7]\.' \
+      | grep -E -v '^0\.8\.[0-5]$' \
       | sort -u -k 1,1n -k 2,2n -k 3,3n -t . \
-      | egrep ^"$version" \
+      | grep -E ^"$version" \
       | tail -n1)
 
     [ "$version" ] || abort "invalid version ${1#v}"
@@ -329,7 +327,7 @@ install() {
   url=$(tarball_url "$version")
 
   if [ -d "$dir" ]; then
-    if [ ! -e "$dir"/p.lock ] ; then
+    if [ ! -e "$dir"/p.lock ]; then
       activate python/"$version"
 
       log activate "$version"
@@ -346,8 +344,7 @@ install() {
 
   is_ok "$url" || abort "invalid version $version"
 
-  mkdir -p "$dir/src"
-  if [ $? -ne 0 ] ; then
+  if ! mkdir -p "$dir/src"; then
     abort "sudo required"
   else
     touch "$dir"/p.lock
@@ -366,9 +363,8 @@ install() {
   ./configure --prefix="$dir" &> /dev/null
 
   log compile "$version"
-  make &> /dev/null
 
-  if [ $? -ne 0 ] ; then
+  if ! make &> /dev/null; then
     abort "Unable to compile Python $version!"
   fi
 
@@ -395,7 +391,7 @@ install() {
 
 is_latest_version() {
   get_current_version
-  if [ $current == $(display_latest_version) ]; then
+  if [ "$current" == "$(display_latest_version)" ]; then
     echo "yes"
   else
     echo "no"
@@ -406,7 +402,7 @@ is_latest_version() {
 
 is_latest_stable_version() {
   get_current_version
-  if [ $current == $(display_latest_stable_version) ]; then
+  if [ "$current" == "$(display_latest_stable_version)" ]; then
     echo "yes"
   else
     echo "no"
@@ -470,7 +466,7 @@ display_bin_path_for_version() {
 
   local bin=$BASE_VERSIONS_DIR/python/$version/bin/python
   if [ -f "$bin" ]; then
-    printf "%s \n" "$bin"
+    printf '%s \n' "$bin"
   else
     abort "Python $version is not installed"
   fi
@@ -511,7 +507,7 @@ activate_default() {
   log activate default
 
   for symdir in $SYMLINK_DIR; do
-    rm "$BASE_VERSIONS_DIR"/$symdir 2> /dev/null
+    rm "$BASE_VERSIONS_DIR/$symdir" 2> /dev/null
   done
 
   success "Now using default system Python!"
@@ -526,7 +522,7 @@ if [ $# -eq 0 ]; then
   display_versions
 else
   while [ $# -ne 0 ]; do
-    case $1 in
+    case "$1" in
       -V|--version) display_p_version; exit ;;
       -h|--help|help) display_help; exit ;;
       ls)
